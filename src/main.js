@@ -3,6 +3,7 @@ import { authController } from './features/auth.js';
    
    // Initialize auth first
    authController.initialize();
+import { DialogSystem } from './ui/dialogs.js';
 import { AppState } from './core/storage.js';
 import { MapController } from './core/map.js';
 import { TrackingController } from './core/tracking.js';
@@ -29,6 +30,7 @@ async initialize() {
     console.log('🌲 Access Nature starting...');
 
     // Initialize core systems
+    this.controllers.dialogs = new DialogSystem();
     this.controllers.state = new AppState();
     this.controllers.map = new MapController();
     this.controllers.tracking = new TrackingController(this.controllers.state);
@@ -42,8 +44,13 @@ async initialize() {
     this.controllers.accessibility = new AccessibilityForm();
     this.controllers.media = new MediaController(this.controllers.state);
     this.controllers.export = new ExportController(this.controllers.state);
-    this.controllers.firebase = new FirebaseController();
+    this.controllers.firebase = new FirebaseController();  // CREATE INSTANCE
     this.controllers.auth = authController;
+
+    this.controllers.firebase.initialize(
+      this.controllers.auth,
+      this.controllers.export  // Pass export controller
+    );
 
     // Set up dependencies
     this.setupControllerDependencies();
@@ -470,6 +477,15 @@ showError(message) {
   }
 
   setupControllerDependencies() {
+    this.controllers.tracking.setDependencies({
+      state: this.controllers.state,
+      map: this.controllers.map,
+      timer: this.controllers.timer,
+      firebase: this.controllers.firebase,  // Add firebase
+      auth: this.controllers.auth,          // Add auth
+      dialogs: this.controllers.dialogs     // Add dialogs
+    });
+
     this.controllers.tracking.setDependencies({
       timer: this.controllers.timer,
       map: this.controllers.map,
