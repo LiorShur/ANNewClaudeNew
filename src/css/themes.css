@@ -44,7 +44,7 @@ body.dark-mode .modal-container {
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .top-bar {
-    top: 5px;
+    top: 44px;
     left: 5px;
     right: 5px;
     transform: none;

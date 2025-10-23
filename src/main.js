@@ -1,4 +1,8 @@
 // Main application entry point with all modules
+import { authController } from './features/auth.js';
+   
+   // Initialize auth first
+   authController.initialize();
 import { AppState } from './core/storage.js';
 import { MapController } from './core/map.js';
 import { TrackingController } from './core/tracking.js';
@@ -9,7 +13,7 @@ import { AccessibilityForm } from './features/accessibility.js';
 import { MediaController } from './features/media.js';
 import { ExportController } from './features/export.js';
 import { FirebaseController } from './features/firebase.js';
-import { AuthController } from './features/auth.js';
+
 
 class AccessNatureApp {
   constructor() {
@@ -39,7 +43,7 @@ async initialize() {
     this.controllers.media = new MediaController(this.controllers.state);
     this.controllers.export = new ExportController(this.controllers.state);
     this.controllers.firebase = new FirebaseController();
-    this.controllers.auth = new AuthController();
+    this.controllers.auth = authController;
 
     // Set up dependencies
     this.setupControllerDependencies();
@@ -64,6 +68,8 @@ async initialize() {
 
   } catch (error) {
     console.error('❌ App initialization failed:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
     alert('Failed to initialize application. Please refresh the page.');
   }
 }
