@@ -1,4 +1,4 @@
-// tracking.js - Refactored GPS Tracking Controller
+// tracking.js - Refactored GPS Tracking Controller with Debug Logging
 import { haversineDistance } from '../utils/calculations.js';
 
 export class TrackingController {
@@ -10,10 +10,20 @@ export class TrackingController {
     this.dependencies = {};
     this.retryCount = 0;
     this.maxRetries = 3;
+    
+    console.log('🎯 TrackingController created');
   }
 
   setDependencies(deps) {
     this.dependencies = deps;
+    console.log('🔗 TrackingController dependencies set:', {
+      hasState: !!deps.state,
+      hasMap: !!deps.map,
+      hasTimer: !!deps.timer,
+      hasFirebase: !!deps.firebase,
+      hasAuth: !!deps.auth,
+      hasDialogs: !!deps.dialogs
+    });
   }
 
   async start() {
@@ -74,7 +84,6 @@ export class TrackingController {
   }
 
   getGPSOptions() {
-    // Adaptive GPS options for battery optimization
     return {
       enableHighAccuracy: true,
       maximumAge: 0,
@@ -301,6 +310,7 @@ export class TrackingController {
 
     // Use custom dialog if available
     if (this.dependencies.dialogs) {
+      console.log('🎨 Using custom dialog system');
       const result = await this.dependencies.dialogs.showSaveDialog({
         locationPoints,
         distance: totalDistance,
@@ -315,6 +325,7 @@ export class TrackingController {
         this.discardRoute();
       }
     } else {
+      console.log('📋 Using fallback confirm dialogs');
       // Fallback to confirm dialogs
       const routeStats = `
 Route Summary:
@@ -343,6 +354,9 @@ Would you like to save this route?`;
 
   async saveRoute(routeName = null, options = {}) {
     try {
+      console.log('💾 === SAVE ROUTE STARTED ===');
+      console.log('📋 Input:', { routeName, options });
+
       // Get route name
       if (!routeName) {
         const defaultName = `Route ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
@@ -354,64 +368,169 @@ Would you like to save this route?`;
         }
         
         if (!routeName) {
-          console.log('Route save cancelled by user');
+          console.log('❌ Route save cancelled by user');
           return;
         }
       }
 
       routeName = routeName.trim();
+      console.log('📝 Route name:', routeName);
 
       // Save to local storage first
       const savedSession = await this.appState.saveSession(routeName);
       this.showSuccessMessage(`✅ "${routeName}" saved locally!`);
+      console.log('✅ Local save complete');
 
-      // Check if user is logged in for cloud save
-const authController = this.dependencies.auth;
-let isUserAuthenticated = false;
-let currentUser = null;
+      // === DEBUG AUTH STATE ===
+      console.log('🔍 === CHECKING AUTH STATE ===');
+      console.log('📦 Dependencies:', {
+        hasAuth: !!this.dependencies.auth,
+        hasFirebase: !!this.dependencies.firebase,
+        hasDialogs: !!this.dependencies.dialogs
+      });
 
-// Try multiple ways to check auth
-if (authController) {
-  currentUser = authController.getCurrentUser();
-  isUserAuthenticated = currentUser !== null;
-  
-  console.log('🔍 Auth status:', {
-    authController: 'exists',
-    currentUser: currentUser?.email || 'none',
-    isAuthenticated: isUserAuthenticated
-  });
-}
+      const authController = this.dependencies.auth;
+      
+      if (!authController) {
+        console.error('❌ Auth controller is undefined!');
+        console.log('📦 All dependencies:', Object.keys(this.dependencies));
+        alert('Error: Authentication system not available. Please refresh the page.');
+        return;
+      }
 
-if (isUserAuthenticated && currentUser) {
-  // User IS signed in - proceed with cloud save
-  const firebaseController = this.dependencies.firebase;
-  
-  if (firebaseController) {
-    // ... cloud save logic (keep as is)
-  }
-} else {
-  // User NOT signed in
-  console.log('❌ User not authenticated, prompting sign in');
-  const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
-  
-  if (wantsToSignIn) {
-    // Trigger sign in
-    const signInBtn = document.getElementById('showAuthBtn') || document.getElementById('googleLoginBtn');
-    if (signInBtn) signInBtn.click();
-  }
-}
+      console.log('✅ Auth controller exists');
+
+      // Check authentication multiple ways
+      let currentUser = null;
+      let isAuthenticated = false;
+
+      try {
+        currentUser = authController.getCurrentUser();
+        console.log('👤 getCurrentUser() result:', currentUser ? {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName
+        } : null);
+      } catch (error) {
+        console.error('❌ Error calling getCurrentUser():', error);
+      }
+
+      try {
+        isAuthenticated = authController.isAuthenticated();
+        console.log('🔐 isAuthenticated() result:', isAuthenticated);
+      } catch (error) {
+        console.error('❌ Error calling isAuthenticated():', error);
+      }
+
+      // Double check with direct property access
+      console.log('🔍 Auth controller properties:', {
+        currentUser: authController.currentUser,
+        hasCurrentUser: !!authController.currentUser
+      });
+
+      // Final decision
+      const userIsSignedIn = currentUser !== null && currentUser !== undefined;
+      console.log('✅ Final auth decision: User is', userIsSignedIn ? 'SIGNED IN' : 'NOT signed in');
+
+      if (userIsSignedIn) {
+        console.log('☁️ === ATTEMPTING CLOUD SAVE ===');
+        
+        const firebaseController = this.dependencies.firebase;
+        
+        if (!firebaseController) {
+          console.error('❌ Firebase controller not available');
+          alert('⚠️ Local save successful, but cloud sync is not available. Please try syncing from the Routes panel later.');
+          this.appState.clearRouteData();
+          return;
+        }
+
+        console.log('✅ Firebase controller available');
+
+        const cloudChoice = options.visibility || await this.askCloudSaveOptions(routeName);
+        console.log('📊 Cloud save choice:', cloudChoice);
+        
+        if (cloudChoice && cloudChoice !== 'skip') {
+          try {
+            const routeData = this.appState.getRouteData();
+            const metadata = {
+              name: routeName,
+              totalDistance: this.appState.getTotalDistance(),
+              elapsedTime: this.appState.getElapsedTime(),
+              isPublic: cloudChoice === 'public'
+            };
+
+            console.log('📤 Preparing cloud save with metadata:', metadata);
+
+            // Get accessibility data
+            let accessibilityData = null;
+            try {
+              const storedData = localStorage.getItem('accessibilityData');
+              accessibilityData = storedData ? JSON.parse(storedData) : null;
+              console.log('♿ Accessibility data:', accessibilityData ? 'Found' : 'None');
+            } catch (error) {
+              console.warn('⚠️ Could not load accessibility data:', error);
+            }
+
+            // Save to cloud using FirebaseController
+            console.log('☁️ Calling firebaseController.saveRouteToCloud()...');
+            const routeId = await firebaseController.saveRouteToCloud(routeData, metadata);
+            console.log('✅ Cloud save successful! Route ID:', routeId);
+            
+            this.showSuccessMessage(`✅ "${routeName}" saved to cloud! ☁️`);
+          } catch (cloudError) {
+            console.error('❌ Cloud save failed:', cloudError);
+            console.error('Error details:', {
+              message: cloudError.message,
+              code: cloudError.code,
+              stack: cloudError.stack
+            });
+            alert('⚠️ Local save successful, but cloud save failed.\nYou can upload to cloud later from the Routes panel.');
+          }
+        } else {
+          console.log('⏭️ User skipped cloud save');
+        }
+      } else {
+        console.log('🔓 === USER NOT SIGNED IN ===');
+        
+        // User not logged in
+        const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
+        
+        if (wantsToSignIn) {
+          console.log('👉 User wants to sign in, looking for sign in button...');
+          
+          // Try multiple sign in button IDs
+          const signInBtn = document.getElementById('showAuthBtn') || 
+                           document.getElementById('googleLoginBtn') ||
+                           document.getElementById('signInBtn');
+          
+          if (signInBtn) {
+            console.log('✅ Found sign in button, clicking...');
+            signInBtn.click();
+          } else {
+            console.error('❌ No sign in button found');
+            alert('Please use the sign in button in the menu to authenticate.');
+          }
+        } else {
+          console.log('⏭️ User declined sign in');
+        }
+      }
 
       // Clear route data after saving
       this.appState.clearRouteData();
-      console.log('✅ Route saved successfully');
+      console.log('✅ Route data cleared');
+      console.log('💾 === SAVE ROUTE COMPLETE ===');
 
     } catch (error) {
-      console.error('❌ Failed to save route:', error);
+      console.error('❌ === SAVE ROUTE FAILED ===');
+      console.error('Error:', error);
+      console.error('Stack:', error.stack);
       alert('Failed to save route: ' + error.message);
     }
   }
 
   async askCloudSaveOptions(routeName) {
+    console.log('❓ Asking user for cloud save options...');
+    
     const message = `"${routeName}" saved locally!
 
 ☁️ Would you like to save to cloud and create a trail guide?
@@ -429,21 +548,27 @@ Choose an option:`;
     const cleanChoice = choice.toLowerCase().trim();
     
     if (cleanChoice === 'private' || cleanChoice === 'p') {
+      console.log('✅ User chose: private');
       return 'private';
     } else if (cleanChoice === 'public' || cleanChoice === 'pub') {
+      console.log('✅ User chose: public');
       return 'public';
     } else if (cleanChoice === 'skip' || cleanChoice === 's') {
+      console.log('✅ User chose: skip');
       return 'skip';
     } else {
+      console.log('❓ Invalid choice, showing simple confirm...');
       const simpleChoice = confirm('Save to cloud?\n\n✅ OK = Private trail guide\n❌ Cancel = Skip cloud save');
-      return simpleChoice ? 'private' : 'skip';
+      const result = simpleChoice ? 'private' : 'skip';
+      console.log('✅ User chose:', result);
+      return result;
     }
   }
 
   discardRoute() {
+    console.log('🗑️ Discarding route');
     this.appState.clearRouteData();
     this.showSuccessMessage('Route discarded');
-    console.log('🗑️ Route data discarded');
   }
 
   showSuccessMessage(message) {
@@ -526,6 +651,7 @@ Choose an option:`;
   }
 
   cleanup() {
+    console.log('🧹 Cleaning up tracking controller');
     if (this.watchId) {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
