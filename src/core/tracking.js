@@ -367,8 +367,16 @@ Would you like to save this route?`;
 
       // Check if user is logged in for cloud save
       const authController = this.dependencies.auth;
+      const user = authController?.getCurrentUser();
       
-      if (authController?.isAuthenticated()) {
+      console.log('🔍 Auth check:', { 
+        hasAuthController: !!authController, 
+        isAuthenticated: authController?.isAuthenticated(),
+        hasUser: !!user,
+        userEmail: user?.email 
+      });
+      
+      if (user && authController?.isAuthenticated()) {
         // Use FirebaseController for cloud save
         const firebaseController = this.dependencies.firebase;
         
