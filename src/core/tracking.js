@@ -366,62 +366,40 @@ Would you like to save this route?`;
       this.showSuccessMessage(`✅ "${routeName}" saved locally!`);
 
       // Check if user is logged in for cloud save
-      const authController = this.dependencies.auth;
-      const user = authController?.getCurrentUser();
-      
-      console.log('🔍 Auth check:', { 
-        hasAuthController: !!authController, 
-        isAuthenticated: authController?.isAuthenticated(),
-        hasUser: !!user,
-        userEmail: user?.email 
-      });
-      
-      if (user && authController?.isAuthenticated()) {
-        // Use FirebaseController for cloud save
-        const firebaseController = this.dependencies.firebase;
-        
-        if (firebaseController) {
-          const cloudChoice = options.visibility || await this.askCloudSaveOptions(routeName);
-          
-          if (cloudChoice && cloudChoice !== 'skip') {
-            try {
-              const routeData = this.appState.getRouteData();
-              const metadata = {
-                name: routeName,
-                totalDistance: this.appState.getTotalDistance(),
-                elapsedTime: this.appState.getElapsedTime(),
-                isPublic: cloudChoice === 'public'
-              };
+const authController = this.dependencies.auth;
+let isUserAuthenticated = false;
+let currentUser = null;
 
-              // Get accessibility data
-              let accessibilityData = null;
-              try {
-                const storedData = localStorage.getItem('accessibilityData');
-                accessibilityData = storedData ? JSON.parse(storedData) : null;
-              } catch (error) {
-                console.warn('Could not load accessibility data:', error);
-              }
+// Try multiple ways to check auth
+if (authController) {
+  currentUser = authController.getCurrentUser();
+  isUserAuthenticated = currentUser !== null;
+  
+  console.log('🔍 Auth status:', {
+    authController: 'exists',
+    currentUser: currentUser?.email || 'none',
+    isAuthenticated: isUserAuthenticated
+  });
+}
 
-              // Save to cloud using FirebaseController
-              await firebaseController.saveRouteToCloud(routeData, metadata);
-              
-              this.showSuccessMessage(`✅ "${routeName}" saved to cloud! ☁️`);
-            } catch (cloudError) {
-              console.error('❌ Cloud save failed:', cloudError);
-              alert('⚠️ Local save successful, but cloud save failed.\nYou can upload to cloud later from the Routes panel.');
-            }
-          }
-        }
-      } else {
-        // User not logged in
-        const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
-        
-        if (wantsToSignIn) {
-          // Trigger sign in
-          const signInBtn = document.getElementById('showAuthBtn') || document.getElementById('googleLoginBtn');
-          if (signInBtn) signInBtn.click();
-        }
-      }
+if (isUserAuthenticated && currentUser) {
+  // User IS signed in - proceed with cloud save
+  const firebaseController = this.dependencies.firebase;
+  
+  if (firebaseController) {
+    // ... cloud save logic (keep as is)
+  }
+} else {
+  // User NOT signed in
+  console.log('❌ User not authenticated, prompting sign in');
+  const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
+  
+  if (wantsToSignIn) {
+    // Trigger sign in
+    const signInBtn = document.getElementById('showAuthBtn') || document.getElementById('googleLoginBtn');
+    if (signInBtn) signInBtn.click();
+  }
+}
 
       // Clear route data after saving
       this.appState.clearRouteData();
