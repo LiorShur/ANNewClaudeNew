@@ -1,4 +1,4 @@
-// tracking.js - Refactored GPS Tracking Controller with Debug Logging
+// tracking.js - Enhanced GPS Tracking Controller with Toast Notifications
 import { haversineDistance } from '../utils/calculations.js';
 
 export class TrackingController {
@@ -30,6 +30,9 @@ export class TrackingController {
     if (this.isTracking) return false;
     
     if (!navigator.geolocation) {
+      if (window.toast) {
+        window.toast.error('GPS Not Supported', 'Your browser does not support geolocation');
+      }
       throw new Error('Geolocation not supported by this browser');
     }
 
@@ -70,6 +73,22 @@ export class TrackingController {
     }
 
     this.updateTrackingButtons();
+    
+    // Show recording indicator
+    const indicator = document.getElementById('recordingIndicator');
+    if (indicator) {
+      indicator.classList.add('active');
+    }
+    
+    // Show toast notification
+    if (window.toast) {
+      if (isResuming) {
+        window.toast.success('Tracking Resumed', 'Continuing your trail recording');
+      } else {
+        window.toast.success('Tracking Started', 'Recording your trail');
+      }
+    }
+    
     console.log(isResuming ? '✅ GPS tracking resumed' : '✅ GPS tracking started');
     
     return true;
@@ -94,6 +113,9 @@ export class TrackingController {
   stop() {
     if (!this.isTracking) {
       console.warn('Tracking not active');
+      if (window.toast) {
+        window.toast.warning('Not Tracking', 'Tracking is not currently active');
+      }
       return false;
     }
 
@@ -116,6 +138,17 @@ export class TrackingController {
     this.appState.setTrackingState(false);
     this.updateTrackingButtons();
 
+    // Hide recording indicator
+    const indicator = document.getElementById('recordingIndicator');
+    if (indicator) {
+      indicator.classList.remove('active');
+    }
+
+    // Show toast notification
+    if (window.toast) {
+      window.toast.info('Tracking Stopped', 'You can now save your route');
+    }
+
     // Prompt for save
     this.promptForSave();
 
@@ -126,6 +159,9 @@ export class TrackingController {
   togglePause() {
     if (!this.isTracking) {
       console.warn('Cannot pause - tracking not active');
+      if (window.toast) {
+        window.toast.warning('Cannot Pause', 'Tracking is not active');
+      }
       return false;
     }
 
@@ -139,6 +175,11 @@ export class TrackingController {
       }
       
       this.startGPSWatch();
+      
+      // Show toast
+      if (window.toast) {
+        window.toast.success('Tracking Resumed', 'Recording continues');
+      }
     } else {
       // Pause
       console.log('⏸️ Pausing tracking...');
@@ -151,6 +192,11 @@ export class TrackingController {
       if (this.watchId) {
         navigator.geolocation.clearWatch(this.watchId);
         this.watchId = null;
+      }
+      
+      // Show toast
+      if (window.toast) {
+        window.toast.info('Tracking Paused', 'Resume when ready');
       }
     }
 
@@ -167,6 +213,9 @@ export class TrackingController {
     // Filter out inaccurate readings
     if (accuracy > 100) {
       console.warn(`GPS accuracy too low: ${accuracy}m`);
+      if (window.toast && this.retryCount === 0) {
+        window.toast.warning('GPS Accuracy Low', `Accuracy: ${Math.round(accuracy)}m - Waiting for better signal`);
+      }
       return;
     }
 
@@ -209,6 +258,9 @@ export class TrackingController {
       this.dependencies.map.updateMarkerPosition(currentCoords);
     }
 
+    // Update status bar
+    this.updateStatusBar();
+
     console.log(`📍 GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${accuracy.toFixed(1)}m)`);
   }
 
@@ -221,6 +273,10 @@ export class TrackingController {
       const retryDelay = 2000 * this.retryCount;
       console.log(`GPS timeout, retry ${this.retryCount}/${this.maxRetries} in ${retryDelay}ms...`);
       
+      if (window.toast && this.retryCount === 1) {
+        window.toast.warning('GPS Timeout', `Retrying... (${this.retryCount}/${this.maxRetries})`);
+      }
+      
       setTimeout(() => {
         if (this.isTracking && !this.isPaused) {
           this.startGPSWatch();
@@ -229,24 +285,34 @@ export class TrackingController {
       return;
     }
 
-    let errorMessage = 'GPS error: ';
+    let errorMessage = '';
+    let errorTitle = 'GPS Error';
     
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        errorMessage += 'Location permission denied. Please enable location access and try again.';
+        errorTitle = 'Location Permission Denied';
+        errorMessage = 'Please enable location access in your browser settings and try again.';
         break;
       case error.POSITION_UNAVAILABLE:
-        errorMessage += 'Location information unavailable. Please check your GPS settings.';
+        errorTitle = 'Location Unavailable';
+        errorMessage = 'Location information is unavailable. Please check your GPS settings.';
         break;
       case error.TIMEOUT:
-        errorMessage += 'Location request timed out. Please try again.';
+        errorTitle = 'Location Timeout';
+        errorMessage = 'Location request timed out. Please try again.';
         break;
       default:
-        errorMessage += 'An unknown error occurred.';
+        errorTitle = 'Unknown GPS Error';
+        errorMessage = 'An unknown error occurred.';
         break;
     }
 
-    alert(errorMessage);
+    // Show toast notification
+    if (window.toast) {
+      window.toast.error(errorTitle, errorMessage);
+    } else {
+      alert(errorTitle + ': ' + errorMessage);
+    }
 
     if (error.code === error.PERMISSION_DENIED) {
       this.stop();
@@ -258,260 +324,259 @@ export class TrackingController {
     const pauseBtn = document.getElementById('pauseBtn');
     const stopBtn = document.getElementById('stopBtn');
 
-    if (startBtn) {
-      startBtn.disabled = this.isTracking;
-      startBtn.style.opacity = this.isTracking ? '0.5' : '1';
-    }
+    if (!startBtn || !pauseBtn || !stopBtn) return;
 
-    if (pauseBtn) {
-      pauseBtn.disabled = !this.isTracking;
-      pauseBtn.style.opacity = this.isTracking ? '1' : '0.5';
-      
-      if (this.isPaused) {
-        pauseBtn.innerHTML = '▶';
-        pauseBtn.title = 'Resume Tracking';
-      } else {
-        pauseBtn.innerHTML = '⏸';
-        pauseBtn.title = 'Pause Tracking';
-      }
-    }
-
-    if (stopBtn) {
-      stopBtn.disabled = !this.isTracking;
-      stopBtn.style.opacity = this.isTracking ? '1' : '0.5';
+    if (!this.isTracking) {
+      startBtn.style.display = 'inline-block';
+      pauseBtn.style.display = 'none';
+      stopBtn.style.display = 'none';
+    } else if (this.isPaused) {
+      startBtn.style.display = 'none';
+      pauseBtn.style.display = 'inline-block';
+      pauseBtn.textContent = '▶';
+      pauseBtn.title = 'Resume';
+      stopBtn.style.display = 'inline-block';
+    } else {
+      startBtn.style.display = 'none';
+      pauseBtn.style.display = 'inline-block';
+      pauseBtn.textContent = '⏸';
+      pauseBtn.title = 'Pause';
+      stopBtn.style.display = 'inline-block';
     }
   }
 
   updateDistanceDisplay(distance) {
     const distanceElement = document.getElementById('distance');
     if (distanceElement) {
-      if (distance < 1) {
-        distanceElement.textContent = `${(distance * 1000).toFixed(0)} m`;
-      } else {
-        distanceElement.textContent = `${distance.toFixed(2)} km`;
+      distanceElement.textContent = `${distance.toFixed(2)} km`;
+    }
+    
+    const statusDistanceElement = document.getElementById('statusDistance');
+    if (statusDistanceElement) {
+      statusDistanceElement.textContent = distance.toFixed(2);
+    }
+  }
+
+  updateStatusBar() {
+    // Update points count
+    const statusPoints = document.getElementById('statusPoints');
+    if (statusPoints) {
+      const routeData = this.appState.getRouteData();
+      const locationPoints = routeData.filter(p => p.type === 'location').length;
+      statusPoints.textContent = locationPoints;
+    }
+
+    // Calculate and update speed
+    const routeData = this.appState.getRouteData();
+    const locationPoints = routeData.filter(p => p.type === 'location');
+    
+    if (locationPoints.length >= 2) {
+      const lastPoint = locationPoints[locationPoints.length - 1];
+      const prevPoint = locationPoints[locationPoints.length - 2];
+      const timeDiff = (lastPoint.timestamp - prevPoint.timestamp) / 1000 / 3600; // hours
+      const distance = haversineDistance(prevPoint.coords, lastPoint.coords);
+      const speed = timeDiff > 0 ? distance / timeDiff : 0;
+      
+      const statusSpeed = document.getElementById('statusSpeed');
+      if (statusSpeed) {
+        statusSpeed.textContent = speed.toFixed(1);
       }
     }
   }
 
-  async promptForSave() {
+  promptForSave() {
     const routeData = this.appState.getRouteData();
-    const totalDistance = this.appState.getTotalDistance();
-    const elapsedTime = this.appState.getElapsedTime();
-
-    // Only prompt if we have route data
+    
     if (!routeData || routeData.length === 0) {
       console.log('No route data to save');
       return;
     }
 
-    const locationPoints = routeData.filter(point => point.type === 'location').length;
-    const photos = routeData.filter(point => point.type === 'photo').length;
-    const notes = routeData.filter(point => point.type === 'text').length;
-
-    // Use custom dialog if available
-    if (this.dependencies.dialogs) {
-      console.log('🎨 Using custom dialog system');
-      const result = await this.dependencies.dialogs.showSaveDialog({
-        locationPoints,
-        distance: totalDistance,
-        duration: elapsedTime,
-        photos,
-        notes
-      });
-
-      if (result.save) {
-        await this.saveRoute(result.name, result.options);
-      } else if (result.discard) {
-        this.discardRoute();
-      }
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) {
+      saveBtn.style.display = 'inline-block';
+      saveBtn.onclick = () => this.saveRoute();
     } else {
-      console.log('📋 Using fallback confirm dialogs');
-      // Fallback to confirm dialogs
-      const routeStats = `
-Route Summary:
-📍 GPS Points: ${locationPoints}
-📏 Distance: ${totalDistance.toFixed(2)} km
-⏱️ Duration: ${this.formatTime(elapsedTime)}
-📷 Photos: ${photos}
-📝 Notes: ${notes}
-
-Would you like to save this route?`;
-
-      const wantsToSave = confirm(routeStats);
-      
-      if (wantsToSave) {
-        await this.saveRoute();
-      } else {
-        const confirmDiscard = confirm('⚠️ Are you sure you want to discard this route? All data will be lost!');
-        if (confirmDiscard) {
-          this.discardRoute();
-        } else {
-          await this.saveRoute();
-        }
+      // Fallback to prompt
+      if (confirm('Would you like to save this route?')) {
+        this.saveRoute();
       }
     }
   }
 
-  async saveRoute(routeName = null, options = {}) {
+  async saveRoute(options = {}) {
     try {
-      console.log('💾 === SAVE ROUTE STARTED ===');
-      console.log('📋 Input:', { routeName, options });
-
-      // Get route name
-      if (!routeName) {
-        const defaultName = `Route ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-        routeName = prompt('Enter a name for this route:', defaultName);
-        
-        if (routeName === null) {
-          const useDefault = confirm('Use default name "' + defaultName + '"?');
-          routeName = useDefault ? defaultName : null;
-        }
-        
-        if (!routeName) {
-          console.log('❌ Route save cancelled by user');
-          return;
-        }
-      }
-
-      routeName = routeName.trim();
-      console.log('📝 Route name:', routeName);
-
-      // Save to local storage first
-      const savedSession = await this.appState.saveSession(routeName);
-      this.showSuccessMessage(`✅ "${routeName}" saved locally!`);
-      console.log('✅ Local save complete');
-
-      // === DEBUG AUTH STATE ===
-      console.log('🔍 === CHECKING AUTH STATE ===');
-      console.log('📦 Dependencies:', {
-        hasAuth: !!this.dependencies.auth,
-        hasFirebase: !!this.dependencies.firebase,
-        hasDialogs: !!this.dependencies.dialogs
-      });
-
-      const authController = this.dependencies.auth;
+      console.log('💾 === STARTING SAVE ROUTE ===');
       
-      if (!authController) {
-        console.error('❌ Auth controller is undefined!');
-        console.log('📦 All dependencies:', Object.keys(this.dependencies));
-        alert('Error: Authentication system not available. Please refresh the page.');
+      const routeData = this.appState.getRouteData();
+      
+      if (!routeData || routeData.length === 0) {
+        console.error('❌ No route data to save');
+        if (window.toast) {
+          window.toast.error('No Data', 'No route data to save');
+        }
         return;
       }
 
-      console.log('✅ Auth controller exists');
-
-      // Check authentication multiple ways
-      let currentUser = null;
-      let isAuthenticated = false;
-
-      try {
-        currentUser = authController.getCurrentUser();
-        console.log('👤 getCurrentUser() result:', currentUser ? {
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName
-        } : null);
-      } catch (error) {
-        console.error('❌ Error calling getCurrentUser():', error);
-      }
-
-      try {
-        isAuthenticated = authController.isAuthenticated();
-        console.log('🔐 isAuthenticated() result:', isAuthenticated);
-      } catch (error) {
-        console.error('❌ Error calling isAuthenticated():', error);
-      }
-
-      // Double check with direct property access
-      console.log('🔍 Auth controller properties:', {
-        currentUser: authController.currentUser,
-        hasCurrentUser: !!authController.currentUser
+      console.log('📊 Route data to save:', {
+        totalPoints: routeData.length,
+        locationPoints: routeData.filter(p => p.type === 'location').length,
+        photos: routeData.filter(p => p.type === 'photo').length,
+        notes: routeData.filter(p => p.type === 'text').length
       });
 
-      // Final decision
-      const userIsSignedIn = currentUser !== null && currentUser !== undefined;
-      console.log('✅ Final auth decision: User is', userIsSignedIn ? 'SIGNED IN' : 'NOT signed in');
+      // Get route name
+      const routeName = options.name || prompt('Enter route name:', `Trail ${new Date().toLocaleDateString()}`);
+      
+      if (!routeName) {
+        console.log('❌ Save cancelled - no route name');
+        return;
+      }
 
-      if (userIsSignedIn) {
-        console.log('☁️ === ATTEMPTING CLOUD SAVE ===');
-        
-        const firebaseController = this.dependencies.firebase;
-        
-        if (!firebaseController) {
-          console.error('❌ Firebase controller not available');
-          alert('⚠️ Local save successful, but cloud sync is not available. Please try syncing from the Routes panel later.');
-          this.appState.clearRouteData();
-          return;
-        }
+      // Save locally
+      console.log('💾 Saving locally...');
+      const session = {
+        id: Date.now(),
+        name: routeName,
+        date: Date.now(),
+        data: routeData,
+        totalDistance: this.appState.getTotalDistance(),
+        elapsedTime: this.appState.getElapsedTime()
+      };
 
-        console.log('✅ Firebase controller available');
+      const sessions = this.appState.getSessions();
+      sessions.push(session);
+      this.appState.saveSessions(sessions);
+      
+      console.log('✅ Local save complete');
 
-        const cloudChoice = options.visibility || await this.askCloudSaveOptions(routeName);
-        console.log('📊 Cloud save choice:', cloudChoice);
-        
-        if (cloudChoice && cloudChoice !== 'skip') {
-          try {
-            const routeData = this.appState.getRouteData();
-            const metadata = {
-              name: routeName,
-              totalDistance: this.appState.getTotalDistance(),
-              elapsedTime: this.appState.getElapsedTime(),
-              isPublic: cloudChoice === 'public'
-            };
+      // Check authentication status
+      let isAuthenticated = false;
+      let currentUser = null;
+      const authController = this.dependencies.auth;
 
-            console.log('📤 Preparing cloud save with metadata:', metadata);
-
-            // Get accessibility data
-            let accessibilityData = null;
-            try {
-              const storedData = localStorage.getItem('accessibilityData');
-              accessibilityData = storedData ? JSON.parse(storedData) : null;
-              console.log('♿ Accessibility data:', accessibilityData ? 'Found' : 'None');
-            } catch (error) {
-              console.warn('⚠️ Could not load accessibility data:', error);
-            }
-
-            // Save to cloud using FirebaseController
-            console.log('☁️ Calling firebaseController.saveRouteToCloud()...');
-            const routeId = await firebaseController.saveRouteToCloud(routeData, metadata);
-            console.log('✅ Cloud save successful! Route ID:', routeId);
-            
-            this.showSuccessMessage(`✅ "${routeName}" saved to cloud! ☁️`);
-          } catch (cloudError) {
-            console.error('❌ Cloud save failed:', cloudError);
-            console.error('Error details:', {
-              message: cloudError.message,
-              code: cloudError.code,
-              stack: cloudError.stack
-            });
-            alert('⚠️ Local save successful, but cloud save failed.\nYou can upload to cloud later from the Routes panel.');
-          }
-        } else {
-          console.log('⏭️ User skipped cloud save');
-        }
+      if (!authController) {
+        console.log('⚠️ Auth controller not available');
       } else {
-        console.log('🔓 === USER NOT SIGNED IN ===');
-        
-        // User not logged in
-        const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
-        
-        if (wantsToSignIn) {
-          console.log('👉 User wants to sign in, looking for sign in button...');
+        try {
+          currentUser = authController.getCurrentUser();
+          console.log('👤 getCurrentUser() result:', currentUser ? {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName
+          } : null);
+        } catch (error) {
+          console.error('❌ Error calling getCurrentUser():', error);
+        }
+
+        try {
+          isAuthenticated = authController.isAuthenticated();
+          console.log('🔐 isAuthenticated() result:', isAuthenticated);
+        } catch (error) {
+          console.error('❌ Error calling isAuthenticated():', error);
+        }
+
+        const userIsSignedIn = currentUser !== null && currentUser !== undefined;
+        console.log('✅ Final auth decision: User is', userIsSignedIn ? 'SIGNED IN' : 'NOT signed in');
+
+        if (userIsSignedIn) {
+          console.log('☁️ === ATTEMPTING CLOUD SAVE ===');
           
-          // Try multiple sign in button IDs
-          const signInBtn = document.getElementById('showAuthBtn') || 
-                           document.getElementById('googleLoginBtn') ||
-                           document.getElementById('signInBtn');
+          const firebaseController = this.dependencies.firebase;
           
-          if (signInBtn) {
-            console.log('✅ Found sign in button, clicking...');
-            signInBtn.click();
+          if (!firebaseController) {
+            console.error('❌ Firebase controller not available');
+            if (window.toast) {
+              window.toast.warning('Local Only', 'Route saved locally. Cloud sync unavailable.');
+            }
+            this.appState.clearRouteData();
+            return;
+          }
+
+          console.log('✅ Firebase controller available');
+
+          const cloudChoice = options.visibility || await this.askCloudSaveOptions(routeName);
+          console.log('📊 Cloud save choice:', cloudChoice);
+          
+          if (cloudChoice && cloudChoice !== 'skip') {
+            try {
+              const routeData = this.appState.getRouteData();
+              const metadata = {
+                name: routeName,
+                totalDistance: this.appState.getTotalDistance(),
+                elapsedTime: this.appState.getElapsedTime(),
+                isPublic: cloudChoice === 'public'
+              };
+
+              console.log('📤 Preparing cloud save with metadata:', metadata);
+
+              // Get accessibility data
+              let accessibilityData = null;
+              try {
+                const storedData = localStorage.getItem('accessibilityData');
+                accessibilityData = storedData ? JSON.parse(storedData) : null;
+                console.log('♿ Accessibility data:', accessibilityData ? 'Found' : 'None');
+              } catch (error) {
+                console.warn('⚠️ Could not load accessibility data:', error);
+              }
+
+              // Show loading toast
+              if (window.toast) {
+                window.toast.info('Saving to Cloud', 'Uploading your trail...');
+              }
+
+              // Save to cloud using FirebaseController
+              console.log('☁️ Calling firebaseController.saveRouteToCloud()...');
+              const routeId = await firebaseController.saveRouteToCloud(routeData, metadata);
+              console.log('✅ Cloud save successful! Route ID:', routeId);
+              
+              // Show success toast
+              if (window.toast) {
+                window.toast.success('Saved to Cloud', `"${routeName}" saved successfully! ☁️`);
+              }
+            } catch (cloudError) {
+              console.error('❌ Cloud save failed:', cloudError);
+              console.error('Error details:', {
+                message: cloudError.message,
+                code: cloudError.code,
+                stack: cloudError.stack
+              });
+              
+              if (window.toast) {
+                window.toast.warning('Cloud Save Failed', 'Saved locally. You can upload to cloud later.');
+              }
+            }
           } else {
-            console.error('❌ No sign in button found');
-            alert('Please use the sign in button in the menu to authenticate.');
+            console.log('⏭️ User skipped cloud save');
           }
         } else {
-          console.log('⏭️ User declined sign in');
+          console.log('🔓 === USER NOT SIGNED IN ===');
+          
+          // Show toast with sign-in prompt
+          if (window.toast) {
+            window.toast.success('Route Saved Locally', 'Sign in to save routes to the cloud');
+          }
+          
+          // User not logged in
+          const wantsToSignIn = confirm('Route saved locally!\n\n💡 Sign in to save routes to the cloud and create shareable trail guides.\n\nWould you like to sign in now?');
+          
+          if (wantsToSignIn) {
+            console.log('👉 User wants to sign in, looking for sign in button...');
+            
+            const signInBtn = document.getElementById('showAuthBtn') || 
+                             document.getElementById('googleLoginBtn') ||
+                             document.getElementById('signInBtn');
+            
+            if (signInBtn) {
+              console.log('✅ Found sign in button, clicking...');
+              signInBtn.click();
+            } else {
+              console.error('❌ No sign in button found');
+              if (window.toast) {
+                window.toast.info('Sign In', 'Please use the sign in button in the menu');
+              }
+            }
+          }
         }
       }
 
@@ -524,7 +589,12 @@ Would you like to save this route?`;
       console.error('❌ === SAVE ROUTE FAILED ===');
       console.error('Error:', error);
       console.error('Stack:', error.stack);
-      alert('Failed to save route: ' + error.message);
+      
+      if (window.toast) {
+        window.toast.error('Save Failed', error.message);
+      } else {
+        alert('Failed to save route: ' + error.message);
+      }
     }
   }
 
@@ -568,52 +638,10 @@ Choose an option:`;
   discardRoute() {
     console.log('🗑️ Discarding route');
     this.appState.clearRouteData();
-    this.showSuccessMessage('Route discarded');
-  }
-
-  showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.textContent = message;
-    successDiv.style.cssText = `
-      position: fixed;
-      top: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-      color: white;
-      padding: 15px 25px;
-      border-radius: 25px;
-      z-index: 9999;
-      font-size: 16px;
-      font-weight: 500;
-      box-shadow: 0 6px 25px rgba(76, 175, 80, 0.4);
-      animation: slideDown 0.4s ease;
-    `;
-
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          transform: translate(-50%, -100%);
-          opacity: 0;
-        }
-        to {
-          transform: translate(-50%, 0);
-          opacity: 1;
-        }
-      }
-    `;
-
-    document.head.appendChild(style);
-    document.body.appendChild(successDiv);
-
-    setTimeout(() => {
-      successDiv.style.animation = 'slideDown 0.4s ease reverse';
-      setTimeout(() => {
-        successDiv.remove();
-        style.remove();
-      }, 400);
-    }, 4000);
+    
+    if (window.toast) {
+      window.toast.info('Route Discarded', 'Route data has been cleared');
+    }
   }
 
   formatTime(milliseconds) {

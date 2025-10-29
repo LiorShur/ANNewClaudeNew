@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Access Nature</title>
+  <title>Access Nature - Trail Tracker</title>
   
   <!-- External CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
@@ -18,15 +18,71 @@
   <link rel="stylesheet" href="src/css/auth.css">
 </head>
 <body>
+  <!-- Enhanced Navigation -->
+  <nav role="navigation">
+    <a href="index.html" class="nav-brand">
+      <span class="nav-brand-icon">🌲</span>
+      <span>Access Nature</span>
+    </a>
+    
+    <button class="menu-toggle" 
+            aria-label="Toggle navigation menu"
+            aria-expanded="false"
+            id="menuToggle">
+      <span class="hamburger-icon">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    </button>
+    
+    <div class="nav-menu" id="navMenu">
+      <a href="index.html" class="nav-link">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="tracker.html" class="nav-link active">
+        <span class="nav-icon">🗺️</span>
+        <span class="nav-label">Track Trail</span>
+      </a>
+    </div>
+  </nav>
+
   <!-- Auth Status Bar -->
   <div id="authStatusBar" class="auth-status-bar">
     <div id="userInfo" class="user-info hidden">
       <span class="user-greeting">Welcome, <span id="userEmail"></span>!</span>
-      <button id="logoutBtn" class="auth-btn logout-btn">Logout</button>
+      <button id="logoutBtn" class="auth-btn logout-btn btn">Logout</button>
     </div>
     <div id="authPrompt" class="auth-prompt">
-      <button id="showAuthBtn" class="auth-btn login-btn">Sign In</button>
+      <button id="showAuthBtn" class="auth-btn login-btn btn" onclick="document.getElementById('authModal').classList.remove('hidden')">Sign In</button>
     </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-item">
+      <div class="status-value" id="statusDistance">0.00</div>
+      <div class="status-label">Distance (km)</div>
+    </div>
+    <div class="status-item">
+      <div class="status-value" id="statusDuration">00:00</div>
+      <div class="status-label">Duration</div>
+    </div>
+    <div class="status-item">
+      <div class="status-value" id="statusSpeed">0.0</div>
+      <div class="status-label">Speed (km/h)</div>
+    </div>
+    <div class="status-item">
+      <div class="status-value" id="statusPoints">0</div>
+      <div class="status-label">Points</div>
+    </div>
+  </div>
+
+  <!-- Recording Indicator -->
+  <div class="recording-indicator" id="recordingIndicator">
+    <span class="recording-dot"></span>
+    <span>Recording</span>
   </div>
 
   <!-- Auth Modal -->
@@ -57,7 +113,7 @@
               <span class="input-icon">🔒</span>
             </div>
             
-            <button type="submit" id="loginBtn" class="auth-submit-btn">
+            <button type="submit" id="loginBtn" class="auth-submit-btn btn">
               <span class="btn-text">Sign In</span>
               <span class="btn-spinner hidden">⏳</span>
             </button>
@@ -67,7 +123,7 @@
             <span>or</span>
           </div>
           
-          <button id="googleLoginBtn" class="google-btn">
+          <button id="googleLoginBtn" class="google-btn btn">
             <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIyLjU2IDEyLjI1QzIyLjU2IDExLjQ3IDIyLjQ5IDEwLjcyIDIyLjM2IDEwSDEyVjE0LjI2SDE3LjkyQzE3LjY2IDE1LjYzIDE2Ljg2IDE2Ljc4IDE1LjY2IDE3LjUzVjIwLjM0SDE5LjI4QzIxLjM2IDE4LjQyIDIyLjU2IDE1LjYgMjIuNTYgMTIuMjVaIiBmaWxsPSIjNDI4NUY0Ii8+CjxwYXRoIGQ9Ik0xMiAyM0M5LjExIDIzIDYuNjYgMjEuOTIgNS4xIDIwLjM0TDEuNjUgMTcuNTNDNC42OSAyMC42MSA4LjEyIDIzIDEyIDIzWiIgZmlsbD0iIzM0QTg1MyIvPgo8cGF0aCBkPSJNNS4xIDIwLjM0QzQuMjUgMTkuNTIgMy41OCAxOC40MyAzLjIgMTcuMkgwVjIwLjM0QzAuNDggMjEuMDkgMS4wNCAyMS43NSAxLjY1IDIyLjI4TDUuMSAyMC4zNFoiIGZpbGw9IiNGQkJDMDQiLz4KPHA+" alt="Google" class="google-icon">
             <span>Continue with Google</span>
           </button>
@@ -100,7 +156,7 @@
               <span class="input-icon">🔒</span>
             </div>
             
-            <button type="submit" id="signupBtn" class="auth-submit-btn">
+            <button type="submit" id="signupBtn" class="auth-submit-btn btn">
               <span class="btn-text">Create Account</span>
               <span class="btn-spinner hidden">⏳</span>
             </button>
@@ -110,7 +166,7 @@
             <span>or</span>
           </div>
           
-          <button id="googleSignupBtn" class="google-btn">
+          <button id="googleSignupBtn" class="google-btn btn">
             <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIyLjU2IDEyLjI1QzIyLjU2IDExLjQ3IDIyLjQ5IDEwLjcyIDIyLjM2IDEwSDEyVjE0LjI2SDE3LjkyQzE3LjY2IDE1LjYzIDE2Ljg2IDE2Ljc4IDE1LjY2IDE3LjUzVjIwLjM0SDE5LjI4QzIxLjM2IDE4LjQyIDIyLjU2IDE1LjYgMjIuNTYgMTIuMjVaIiBmaWxsPSIjNDI4NUY0Ii8+CjxwYXRoIGQ9Ik0xMiAyM0M5LjExIDIzIDYuNjYgMjEuOTIgNS4xIDIwLjM0TDEuNjUgMTcuNTNDNC42OSAyMC42MSA4LjEyIDIzIDEyIDIzWiIgZmlsbD0iIzM0QTg1MyIvPgo8cGF0aCBkPSJNNS4xIDIwLjM0QzQuMjUgMTkuNTIgMy41OCAxOC40MyAzLjIgMTcuMkgwVjIwLjM0QzAuNDggMjEuMDkgMS4wNCAyMS43NSAxLjY1IDIyLjI4TDUuMSAyMC4zNFoiIGZpbGw9IiNGQkJDMDQiLz4KPHA+" alt="Google" class="google-icon">
             <span>Continue with Google</span>
           </button>
@@ -128,6 +184,7 @@
     <span class="sync-icon">☁️</span>
     <span class="sync-text">Syncing...</span>
   </div>
+
   <!-- Map Container -->
   <div id="map-container">
     <div id="map"></div>
@@ -141,9 +198,9 @@
 
   <!-- Top Control Bar -->
   <div class="top-bar">
-    <button id="startBtn" class="round-button" title="Start Tracking">▶</button>
-    <button id="pauseBtn" class="round-button" title="Pause">⏸</button>
-    <button id="stopBtn" class="round-button" title="Stop">⏹</button>
+    <button id="startBtn" class="round-button btn" title="Start Tracking">▶</button>
+    <button id="pauseBtn" class="round-button btn" title="Pause">⏸</button>
+    <button id="stopBtn" class="round-button btn" title="Stop">⏹</button>
     <span id="timer" class="stat-display">00:00:00</span>
     <span class="separator">|</span>
     <span id="distance" class="stat-display">0.00 km</span>
@@ -151,61 +208,80 @@
 
   <!-- Left Controls -->
   <div class="floating-left">
-    <button id="toggleBtn" class="round-button" title="Toggle Rotation">🧭</button>
-    <button class="round-button" onclick="openAccessibilityForm()" title="Accessibility">♿</button>
+    <button id="toggleBtn" class="round-button btn" title="Toggle Rotation">🧭</button>
+    <button class="round-button btn" onclick="openAccessibilityForm()" title="Accessibility">♿</button>
   </div>
 
   <!-- Right Media Panel -->
   <div class="floating-right media-panel" id="mediaPanel">
-    <button id="takePhotoBtn" class="round-button" title="Take Photo">📷</button>
-    <button class="round-button" onclick="addTextNote()" title="Add Note">📝</button>
-    <button class="round-button" onclick="showRouteDataOnMap()" title="Show Route Data">🗺</button>
+    <button id="takePhotoBtn" class="round-button btn" title="Take Photo">📷</button>
+    <button class="round-button btn" onclick="addTextNote()" title="Add Note">📝</button>
+    <button class="round-button btn" onclick="showRouteDataOnMap()" title="Show Route Data">🗺</button>
   </div>
 
   <!-- Bottom Navigation -->
   <div id="bottomNav" class="bottom-nav">
-    <button class="nav-button" onclick="togglePanel('exportPanel')">Export</button>
-    <button class="nav-button" onclick="togglePanel('summaryPanel')">Routes</button>
-    <button class="nav-button" onclick="togglePanel('trailGuidePanel')">Guides</button>
-    <button class="nav-button" onclick="togglePanel('devToolsPanel')">Tools</button>
+    <button class="nav-button btn" onclick="togglePanel('exportPanel')">Export</button>
+    <button class="nav-button btn" onclick="togglePanel('summaryPanel')">Routes</button>
+    <button class="nav-button btn" onclick="togglePanel('trailGuidePanel')">Guides</button>
+    <button class="nav-button btn" onclick="togglePanel('devToolsPanel')">Tools</button>
   </div>
 
   <!-- Export Panel -->
   <div id="exportPanel" class="bottom-popup hidden">
-    <button id="prepareAndExportBtn">📦 Export Route</button>
-  <button id="exportGPXBtn">📍 Export GPX</button>
-  <button id="exportPDFBtn">📄 Export PDF</button>
-  <button id="exportSummaryBtn">🌐 Export Trail Guide</button>
-  <button id="saveToCloudBtn" class="cloud-save-btn">☁️ Save to Cloud</button>
+    <button id="prepareAndExportBtn" class="btn">📦 Export Route</button>
+    <button id="exportGPXBtn" class="btn">📍 Export GPX</button>
+    <button id="exportPDFBtn" class="btn">📄 Export PDF</button>
+    <button id="exportSummaryBtn" class="btn">🌐 Export Trail Guide</button>
+    <button id="saveToCloudBtn" class="cloud-save-btn btn">☁️ Save to Cloud</button>
   </div>
 
   <!-- Summary Panel -->
   <div id="summaryPanel" class="bottom-popup hidden">
-    <button id="loadCloudRoutesBtn" class="cloud-load-btn">☁️ Load My Routes</button>
-  <button id="loadMyGuidesBtn" class="cloud-load-btn">🌐 Load My Guides</button>
-  <button id="clearAllSessionsBtn">🗑️ Clear Routes</button>
-  <button id="clearAllAppDataBtn">🧹 Clear Everything</button>
+    <button id="loadCloudRoutesBtn" class="cloud-load-btn btn">☁️ Load My Routes</button>
+    <button id="loadMyGuidesBtn" class="cloud-load-btn btn">🌐 Load My Guides</button>
+    <button id="clearAllSessionsBtn" class="btn">🗑️ Clear Routes</button>
+    <button id="clearAllAppDataBtn" class="btn">🧹 Clear Everything</button>
   </div>
 
   <!-- Dev Tools Panel -->
   <div id="devToolsPanel" class="bottom-popup hidden">
-    <button onclick="showStorageMonitor()">🧪 Storage Monitor</button>
-    <button onclick="triggerImport()">📥 Import Route</button>
-    <button id="resetBtn" onclick="confirmAndResetApp()">🔄 Reset App</button>
+    <button onclick="showStorageMonitor()" class="btn">🧪 Storage Monitor</button>
+    <button onclick="triggerImport()" class="btn">📥 Import Route</button>
+    <button id="resetBtn" onclick="confirmAndResetApp()" class="btn">🔄 Reset App</button>
   </div>
-
-  <!-- Add this new panel after your existing panels -->
-<!-- <div id="trailGuidePanel" class="bottom-popup hidden">
-  <h3>🌐 My Trail Guides</h3>
-  <button id="loadMyGuidesBtn">📂 Load My Guides</button>
-  <div id="myGuidesList" class="guides-list"> -->
-    <!-- Dynamically populated -->
-  <!-- </div>
-</div> -->
 
   <!-- Accessibility Form Modal -->
   <div id="accessibilityOverlay" class="overlay hidden">
     <div id="accessibilityFormContainer" class="modal-container"></div>
+  </div>
+
+  <!-- Routes List Modal -->
+  <div id="routesListModal" class="list-modal hidden">
+    <div class="list-modal-overlay" onclick="closeRoutesModal()"></div>
+    <div class="list-modal-content">
+      <div class="list-modal-header">
+        <h2>☁️ My Routes</h2>
+        <button onclick="closeRoutesModal()" class="close-btn btn">✕</button>
+      </div>
+      <div id="routesListContainer" class="list-container">
+        <!-- Routes will be inserted here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Guides List Modal -->
+  <div id="guidesListModal" class="list-modal hidden">
+    <div class="list-modal-overlay" onclick="closeGuidesModal()"></div>
+    <div class="list-modal-content">
+      <div class="list-modal-header">
+        <h2>🌐 My Trail Guides</h2>
+        <button onclick="closeGuidesModal()" class="close-btn btn">✕</button>
+      </div>
+      <div id="guidesListContainer" class="list-container">
+        <!-- Guides will be inserted here -->
+      </div>
+    </div>
   </div>
 
   <!-- Hidden File Inputs -->
@@ -217,8 +293,33 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-  <!-- App JavaScript -->
-  <script type="module" src="src/main.js"></script>
+  <!-- Toast Notification System (load first) -->
+  <script type="module" src="src/ui/toast.js"></script>
+  
+  <!-- UI Components -->
+  <script type="module" src="src/ui/navigation.js"></script>
+  <script type="module" src="src/ui/compass.js"></script>
+  
+  <!-- Utilities -->
+  <script type="module" src="src/utils/geolocation.js"></script>
+  <script type="module" src="src/utils/calculations.js"></script>
+  <script type="module" src="src/utils/helpers.js"></script>
+  
+  <!-- Core -->
+  <script type="module" src="src/core/indexeddb.js"></script>
+  <script type="module" src="src/core/storage.js"></script>
+  <script type="module" src="src/core/map.js"></script>
+  <script type="module" src="src/core/tracking.js"></script>
+  <script type="module" src="src/core/timer.js"></script>
+  
+  <!-- Features -->
+  <script type="module" src="src/features/accessibility.js"></script>
+  <script type="module" src="src/features/media.js"></script>
+  <script type="module" src="src/features/export.js"></script>
+  <script type="module" src="src/features/firebase.js"></script>
   <script type="module" src="src/features/auth.js"></script>
+  
+  <!-- Main App -->
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

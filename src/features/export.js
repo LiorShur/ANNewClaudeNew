@@ -69,7 +69,7 @@ export class ExportController {
     }
 
     if (options.length === 0) {
-      alert('❌ No route data available to export.\n\nTo export routes:\n• Start tracking and record a route, OR\n• Load a previously saved route');
+      if (window.toast) { window.toast.error('Error', 'No route data available to export.\n\nTo export routes:\n• Start tracking and record a route, OR\n• Load a previously saved route'); } else { alert('❌ No route data available to export.\n\nTo export routes:\n• Start tracking and record a route, OR\n• Load a previously saved route'); }
       return;
     }
 
@@ -99,7 +99,7 @@ export class ExportController {
   exportCurrentRoute() {
     const routeData = this.appState.getRouteData();
     if (!routeData || routeData.length === 0) {
-      alert('No current route data to export');
+      if (window.toast) { window.toast.info('Info', 'No current route data to export'); } else { alert('No current route data to export'); }
       return;
     }
 
@@ -112,14 +112,14 @@ export class ExportController {
     };
 
     this.downloadJSON(exportData, `current-route-${Date.now()}.json`);
-    this.showSuccessMessage('✅ Current route exported successfully!');
+    if (window.toast) { window.toast.success('Success', '✅ Current route exported successfully!'); }
   }
 
   // Show list of saved routes for export selection
   showSavedRoutesForExport() {
     const sessions = this.appState.getSessions();
     if (!sessions || sessions.length === 0) {
-      alert('No saved routes available');
+      if (window.toast) { window.toast.info('Info', 'No saved routes available'); } else { alert('No saved routes available'); }
       return;
     }
 
@@ -161,14 +161,14 @@ export class ExportController {
 
     const filename = `${session.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${session.id}.json`;
     this.downloadJSON(exportData, filename);
-    this.showSuccessMessage(`✅ "${session.name}" exported successfully!`);
+    if (window.toast) { window.toast.success('Success', `✅ "${session.name}" exported successfully!`); }
   }
 
   // Export all saved routes
   exportAllRoutes() {
     const sessions = this.appState.getSessions();
     if (!sessions || sessions.length === 0) {
-      alert('No saved routes to export');
+      if (window.toast) { window.toast.info('Info', 'No saved routes to export'); } else { alert('No saved routes to export'); }
       return;
     }
 
@@ -188,7 +188,7 @@ export class ExportController {
     };
 
     this.downloadJSON(exportData, `all-routes-export-${Date.now()}.json`);
-    this.showSuccessMessage(`✅ All ${sessions.length} routes exported successfully!`);
+    if (window.toast) { window.toast.success('Success', `✅ All ${sessions.length} routes exported successfully!`); }
   }
 
   // Updated GPX export to handle both current and saved routes
@@ -220,7 +220,7 @@ export class ExportController {
         filename = `${selectedRoute.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.gpx`;
       }
     } else {
-      alert('❌ No GPS data available to export to GPX!\n\nTo export GPX files:\n• Start tracking and record a route with GPS points, OR\n• Load a previously saved route');
+      if (window.toast) { window.toast.error('Error', 'No GPS data available to export to GPX!\n\nTo export GPX files:\n• Start tracking and record a route with GPS points, OR\n• Load a previously saved route'); } else { alert('❌ No GPS data available to export to GPX!\n\nTo export GPX files:\n• Start tracking and record a route with GPS points, OR\n• Load a previously saved route'); }
       return;
     }
     
@@ -229,14 +229,14 @@ export class ExportController {
     const locationPoints = routeDataToExport.filter(point => point.type === 'location' && point.coords);
     
     if (locationPoints.length === 0) {
-      alert('❌ No GPS location points found in selected route!');
+      if (window.toast) { window.toast.error('Error', 'No GPS location points found in selected route!'); } else { alert('❌ No GPS location points found in selected route!'); }
       return;
     }
 
     try {
       const gpxContent = this.generateGPX(locationPoints);
       this.downloadFile(gpxContent, filename, 'application/gpx+xml');
-      this.showSuccessMessage(`✅ GPX file exported with ${locationPoints.length} GPS points!`);
+      if (window.toast) { window.toast.success('Success', `✅ GPX file exported with ${locationPoints.length} GPS points!`); }
     } catch (error) {
       console.error('GPX export failed:', error);
       alert('❌ GPX export failed: ' + error.message);
@@ -246,7 +246,7 @@ export class ExportController {
   // Updated PDF export with route selection
   exportPDF() {
     if (!window.jsPDF) {
-      alert('❌ PDF export not available. jsPDF library required.');
+      if (window.toast) { window.toast.error('Error', 'PDF export not available. jsPDF library required.'); } else { alert('❌ PDF export not available. jsPDF library required.'); }
       return;
     }
 
@@ -282,7 +282,7 @@ export class ExportController {
         routeInfo = selectedRoute;
       }
     } else {
-      alert('❌ No route data available to export to PDF!');
+      if (window.toast) { window.toast.error('Error', 'No route data available to export to PDF!'); } else { alert('❌ No route data available to export to PDF!'); }
       return;
     }
     
@@ -383,7 +383,7 @@ export class ExportController {
     const filename = `${routeInfo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
     doc.save(filename);
     
-    this.showSuccessMessage('✅ PDF report generated successfully!');
+    if (window.toast) { window.toast.success('Success', '✅ PDF report generated successfully!'); }
   }
 
   // Keep all the existing methods (generateGPX, handleFileImport, etc.)
@@ -510,7 +510,7 @@ export class ExportController {
       this.appState.addRoutePoint(point);
     });
 
-    this.showSuccessMessage(`✅ Successfully imported ${routeData.length} data points!`);
+    if (window.toast) { window.toast.success('Success', `✅ Successfully imported ${routeData.length} data points!`); }
   }
 
   async importGPX(file) {
@@ -549,7 +549,7 @@ export class ExportController {
       importedPoints++;
     });
 
-    this.showSuccessMessage(`✅ Successfully imported ${importedPoints} GPS points from GPX!`);
+    if (window.toast) { window.toast.success('Success', `✅ Successfully imported ${importedPoints} GPS points from GPX!`); }
   }
 
   readFileAsText(file) {
@@ -663,7 +663,7 @@ async exportRouteSummary() {
       routeInfo = selectedRoute;
     }
   } else {
-    alert('❌ No route data available to export!\n\nTo create route summaries:\n• Start tracking and record a route, OR\n• Load a previously saved route');
+    if (window.toast) { window.toast.error('Error', 'No route data available to export!\n\nTo create route summaries:\n• Start tracking and record a route, OR\n• Load a previously saved route'); } else { alert('❌ No route data available to export!\n\nTo create route summaries:\n• Start tracking and record a route, OR\n• Load a previously saved route'); }
     return;
   }
 
@@ -674,7 +674,7 @@ async exportRouteSummary() {
     const filename = `${routeInfo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_summary.html`;
     
     this.downloadFile(htmlContent, filename, 'text/html');
-    this.showSuccessMessage('✅ Route summary webpage created successfully!');
+    if (window.toast) { window.toast.success('Success', '✅ Route summary webpage created successfully!'); }
     
     // Ask if they want to preview it
     const preview = confirm('Route summary created! Would you like to preview it in a new tab?');

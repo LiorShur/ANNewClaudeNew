@@ -568,7 +568,11 @@ export class AccessibilityForm {
     const missingFields = requiredFields.filter(field => !data[field]);
     
     if (missingFields.length > 0) {
-      alert('Please fill in the required fields: ' + missingFields.join(', '));
+      if (window.toast) {
+        window.toast.error('Missing Fields', 'Please fill in: ' + missingFields.join(', '));
+      } else {
+        alert('Please fill in the required fields: ' + missingFields.join(', '));
+      }
       return;
     }
 

@@ -423,20 +423,27 @@ body {
 }
 
 .load-more-btn {
-  padding: 15px 40px;
-  background: transparent;
-  color: #4a7c59;
-  border: 2px solid #4a7c59;
-  border-radius: 25px;
-  font-weight: 600;
+  margin: 20px auto;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  display: block;
+  transition: all 0.2s;
 }
 
 .load-more-btn:hover {
-  background: #4a7c59;
-  color: white;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Footer Section */

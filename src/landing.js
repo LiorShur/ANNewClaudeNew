@@ -8,6 +8,9 @@ class LandingPageController {
     this.currentSearch = '';
     this.lastVisible = null;
     this.isLoading = false;
+    this.featuredTrails = [];  
+    this.displayedCount = 6;    // Number of featured trails to show initially
+    this.batchSize = 6;
   }
 
 async initialize() {
@@ -20,13 +23,11 @@ async initialize() {
     await this.loadFeaturedTrails();
     this.updateUserStats();
     
-    // Make this instance globally available for modal functions
-    window.landingAuth = this;
-    
     console.log('✅ Landing page initialized');
   } catch (error) {
     console.error('❌ Landing page initialization failed:', error);
   }
+
 }
 
   setupEventListeners() {
@@ -346,34 +347,86 @@ async loadFeaturedTrails() {
     
     const { collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js");
     
-    // Simple query without orderBy to avoid index issues
+    // Query ALL public trails (not just 6)
     const featuredQuery = query(
       collection(db, 'trail_guides'),
       where('isPublic', '==', true)
     );
     
     const querySnapshot = await getDocs(featuredQuery);
-    const featured = [];
+    this.featuredTrails = [];  // Reset array
     
     querySnapshot.forEach(doc => {
-      featured.push({
+      this.featuredTrails.push({
         id: doc.id,
         ...doc.data()
       });
     });
     
     // Sort client-side by creation date (newest first)
-    featured.sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt));
+    this.featuredTrails.sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt));
     
-    // Take first 6 for featured display
-    const featuredToShow = featured.slice(0, 6);
+    console.log(`Loaded ${this.featuredTrails.length} total featured trails`);
     
-    console.log(`Loaded ${featuredToShow.length} featured trails`);
-    this.displayFeaturedTrails(featuredToShow);
+    // Display first batch
+    this.displayedCount = this.batchSize;
+    this.displayFeaturedTrails(this.featuredTrails.slice(0, this.displayedCount));
+    
+    // Update button state
+    this.updateLoadMoreButton();
     
   } catch (error) {
     console.error('Failed to load featured trails:', error);
     this.showFeaturedPlaceholder();
+  }
+}
+
+// NEW: Load more trails
+loadMoreFeatured() {
+  console.log('Loading more trails...');
+  
+  // Increase displayed count
+  this.displayedCount += this.batchSize;
+  
+  // Make sure we don't go over the total
+  if (this.displayedCount > this.featuredTrails.length) {
+    this.displayedCount = this.featuredTrails.length;
+  }
+  
+  // Display trails up to new count
+  this.displayFeaturedTrails(this.featuredTrails.slice(0, this.displayedCount));
+  
+  // Update button
+  this.updateLoadMoreButton();
+  
+  console.log(`Showing ${this.displayedCount} of ${this.featuredTrails.length} trails`);
+}
+
+// NEW: Update Load More button
+updateLoadMoreButton() {
+  const button = document.querySelector('.load-more-btn');
+  if (!button) {
+    console.warn('Load more button not found');
+    return;
+  }
+  
+  // Check if we have trails
+  if (!this.featuredTrails || this.featuredTrails.length === 0) {
+    button.style.display = 'none';
+    return;
+  }
+  
+  // Calculate remaining
+  const remaining = this.featuredTrails.length - this.displayedCount;
+  
+  // Hide button if showing all trails
+  if (remaining <= 0) {
+    button.style.display = 'none';
+    console.log('All trails displayed, hiding button');
+  } else {
+    button.style.display = 'block';
+    button.textContent = `Load More Trails (${remaining} remaining)`;
+    console.log(`Button updated: ${remaining} trails remaining`);
   }
 }
 
@@ -653,11 +706,6 @@ Happy trail mapping! 🥾`);
     // This would extend the current search with more results
   }
 
-  async loadMoreFeatured() {
-    // Load more featured trails
-    console.log('⭐ Loading more featured trails...');
-    // This would load additional featured trails
-  }
 
   clearFilters() {
     // Clear all filters and search
@@ -1631,7 +1679,7 @@ async handleGoogleAuth() {
       if (!confirmed) return;
 
       const { signOut } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js");
-      const { auth } = await import('./firebase-setup.js');
+      const { auth } = await import('../firebase-setup.js');
 
       await signOut(auth);
       console.log('👋 Logout successful');
@@ -1762,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await landingAuth.initialize();
     
     // Make it globally available for debugging
-    window.LandingAuth = landingAuth;
+    window.landingAuth = landingAuth;
     
     console.log('🏠 Landing page authentication ready');
   }, 500);
@@ -1779,7 +1827,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Make controller available globally
   window.LandingPageController = landingController;
+  window.landingPageInstance = landingController;  // Also store with this name for loadMoreFeatured
 });
 
+
+// Make loadMoreFeatured globally accessible
+window.loadMoreFeatured = function() {
+  const landingPage = window.landingPageInstance;
+  if (landingPage && typeof landingPage.loadMoreFeatured === 'function') {
+    landingPage.loadMoreFeatured();
+  } else {
+    console.error('Landing page instance not found or loadMoreFeatured method missing');
+  }
+};
 
 export { LandingPageController };

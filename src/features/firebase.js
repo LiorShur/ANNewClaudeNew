@@ -1,4 +1,4 @@
-// firebase.js - Complete Firebase Controller with Cloud Save & Trail Guides
+// firebase.js - Enhanced Firebase Controller with Toast Notifications
 import { db } from '../../firebase-setup.js';
 import { 
   collection, 
@@ -32,19 +32,36 @@ export class FirebaseController {
   initialize(authController, exportController = null) {
     this.authController = authController;
     this.exportController = exportController;
-    console.log('🔥 Firebase controller connected to auth');
+    
+    // Verify auth controller is valid
+    if (!this.authController) {
+      console.error('❌ FirebaseController: Auth controller is null/undefined');
+    } else if (typeof this.authController.getCurrentUser !== 'function') {
+      console.error('❌ FirebaseController: Auth controller missing getCurrentUser method');
+    } else {
+      console.log('🔥 Firebase controller connected to auth');
+    }
   }
 
   setupNetworkListeners() {
     window.addEventListener('online', () => {
       console.log('🌐 Back online');
       this.isOnline = true;
+      
+      if (window.toast) {
+        window.toast.success('Back Online', 'Internet connection restored');
+      }
+      
       this.processPendingSyncs();
     });
 
     window.addEventListener('offline', () => {
       console.log('📴 Gone offline');
       this.isOnline = false;
+      
+      if (window.toast) {
+        window.toast.warning('Offline', 'Working in offline mode');
+      }
     });
   }
 
@@ -68,12 +85,20 @@ export class FirebaseController {
     const user = this.getCurrentUser();
     
     if (!user) {
-      throw new Error('Please sign in to save routes to cloud');
+      const errorMsg = 'Please sign in to save routes to cloud';
+      if (window.toast) {
+        window.toast.error('Not Signed In', errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     if (!this.isOnline) {
       this.pendingSyncs.push({ type: 'save', routeData, metadata });
-      throw new Error('Offline - route queued for sync when online');
+      const errorMsg = 'Offline - route queued for sync when online';
+      if (window.toast) {
+        window.toast.warning('Queued for Sync', 'Route will sync when online');
+      }
+      throw new Error(errorMsg);
     }
 
     try {
@@ -140,10 +165,20 @@ export class FirebaseController {
       console.error('❌ Failed to save route to cloud:', error);
       
       if (error.code === 'permission-denied') {
+        if (window.toast) {
+          window.toast.error('Permission Denied', 'Please check your account permissions');
+        }
         throw new Error('Permission denied. Please check your account.');
       } else if (error.code === 'unavailable') {
         this.pendingSyncs.push({ type: 'save', routeData, metadata });
+        if (window.toast) {
+          window.toast.warning('Service Unavailable', 'Route queued for sync');
+        }
         throw new Error('Cloud temporarily unavailable. Route queued for sync.');
+      }
+      
+      if (window.toast) {
+        window.toast.error('Cloud Save Failed', error.message);
       }
       
       throw error;
@@ -230,10 +265,17 @@ export class FirebaseController {
       const visibilityText = routeInfo.isPublic ? 'public' : 'private';
       console.log(`✅ ${visibilityText} trail guide generated with ID:`, guideRef.id);
       
+      if (window.toast) {
+        window.toast.success('Trail Guide Created', `${visibilityText} guide generated successfully`);
+      }
+      
       return guideRef.id;
 
     } catch (error) {
       console.error('❌ Failed to generate trail guide:', error);
+      if (window.toast) {
+        window.toast.warning('Guide Generation Issue', 'Route saved but guide creation had issues');
+      }
       // Don't fail the main save if trail guide fails
     }
   }
@@ -301,11 +343,19 @@ export class FirebaseController {
     const user = this.getCurrentUser();
     
     if (!user) {
-      throw new Error('Please sign in to load your routes');
+      const errorMsg = 'Please sign in to load your routes';
+      if (window.toast) {
+        window.toast.error('Not Signed In', errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     try {
       console.log('☁️ Loading routes from cloud...');
+      
+      if (window.toast) {
+        window.toast.info('Loading Routes', 'Fetching your trails...');
+      }
 
       const q = query(
         collection(this.db, 'routes'),
@@ -324,13 +374,25 @@ export class FirebaseController {
       });
 
       console.log(`✅ Loaded ${routes.length} routes from cloud`);
+      
+      if (window.toast) {
+        window.toast.success('Routes Loaded', `Found ${routes.length} route${routes.length !== 1 ? 's' : ''}`);
+      }
+      
       return routes;
       
     } catch (error) {
       console.error('❌ Failed to load routes:', error);
       
       if (error.code === 'permission-denied') {
+        if (window.toast) {
+          window.toast.error('Permission Denied', 'Check Firestore rules');
+        }
         throw new Error('Permission denied. Please check Firestore rules.');
+      }
+      
+      if (window.toast) {
+        window.toast.error('Load Failed', error.message);
       }
       
       throw error;
@@ -343,15 +405,24 @@ export class FirebaseController {
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
+        if (window.toast) {
+          window.toast.success('Route Loaded', 'Route data loaded successfully');
+        }
         return {
           id: docSnap.id,
           ...docSnap.data()
         };
       } else {
+        if (window.toast) {
+          window.toast.error('Not Found', 'Route does not exist');
+        }
         throw new Error('Route not found');
       }
     } catch (error) {
       console.error('❌ Failed to load route:', error);
+      if (window.toast) {
+        window.toast.error('Load Failed', error.message);
+      }
       throw error;
     }
   }
@@ -360,7 +431,11 @@ export class FirebaseController {
     const user = this.getCurrentUser();
     
     if (!user) {
-      throw new Error('Please sign in to update routes');
+      const errorMsg = 'Please sign in to update routes';
+      if (window.toast) {
+        window.toast.error('Not Signed In', errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     try {
@@ -372,10 +447,18 @@ export class FirebaseController {
       });
 
       console.log('✅ Route updated:', routeId);
+      
+      if (window.toast) {
+        window.toast.success('Route Updated', 'Changes saved successfully');
+      }
+      
       return true;
       
     } catch (error) {
       console.error('❌ Failed to update route:', error);
+      if (window.toast) {
+        window.toast.error('Update Failed', error.message);
+      }
       throw error;
     }
   }
@@ -384,7 +467,11 @@ export class FirebaseController {
     const user = this.getCurrentUser();
     
     if (!user) {
-      throw new Error('Please sign in to delete routes');
+      const errorMsg = 'Please sign in to delete routes';
+      if (window.toast) {
+        window.toast.error('Not Signed In', errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     try {
@@ -392,10 +479,18 @@ export class FirebaseController {
       await deleteDoc(docRef);
       
       console.log('✅ Route deleted:', routeId);
+      
+      if (window.toast) {
+        window.toast.success('Route Deleted', 'Route removed successfully');
+      }
+      
       return true;
       
     } catch (error) {
       console.error('❌ Failed to delete route:', error);
+      if (window.toast) {
+        window.toast.error('Delete Failed', error.message);
+      }
       throw error;
     }
   }
@@ -425,6 +520,9 @@ export class FirebaseController {
       
     } catch (error) {
       console.error('❌ Failed to load public routes:', error);
+      if (window.toast) {
+        window.toast.warning('Load Issue', 'Could not load public routes');
+      }
       return [];
     }
   }
@@ -468,6 +566,9 @@ export class FirebaseController {
       
     } catch (error) {
       console.error('❌ Search failed:', error);
+      if (window.toast) {
+        window.toast.warning('Search Issue', 'Search encountered an error');
+      }
       return [];
     }
   }
@@ -484,6 +585,9 @@ export class FirebaseController {
       }
     }, (error) => {
       console.error('❌ Snapshot error:', error);
+      if (window.toast) {
+        window.toast.error('Sync Error', 'Real-time updates failed');
+      }
     });
 
     return unsubscribe;
@@ -493,19 +597,29 @@ export class FirebaseController {
     if (this.pendingSyncs.length === 0) return;
 
     console.log(`🔄 Processing ${this.pendingSyncs.length} pending syncs...`);
+    
+    if (window.toast) {
+      window.toast.info('Syncing', `Processing ${this.pendingSyncs.length} pending sync${this.pendingSyncs.length !== 1 ? 's' : ''}...`);
+    }
 
     const syncs = [...this.pendingSyncs];
     this.pendingSyncs = [];
+    let successCount = 0;
 
     for (const sync of syncs) {
       try {
         if (sync.type === 'save') {
           await this.saveRouteToCloud(sync.routeData, sync.metadata);
+          successCount++;
         }
       } catch (error) {
         console.error('❌ Sync failed, re-queuing:', error);
         this.pendingSyncs.push(sync);
       }
+    }
+    
+    if (successCount > 0 && window.toast) {
+      window.toast.success('Sync Complete', `${successCount} route${successCount !== 1 ? 's' : ''} synced successfully`);
     }
   }
 
@@ -523,10 +637,18 @@ export class FirebaseController {
     const user = this.getCurrentUser();
     
     if (!user) {
-      throw new Error('Please sign in to load your guides');
+      const errorMsg = 'Please sign in to load your guides';
+      if (window.toast) {
+        window.toast.error('Not Signed In', errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     try {
+      if (window.toast) {
+        window.toast.info('Loading Guides', 'Fetching your trail guides...');
+      }
+
       const q = query(
         collection(this.db, 'trail_guides'),
         where('userId', '==', user.uid),
@@ -544,10 +666,18 @@ export class FirebaseController {
       });
 
       console.log(`✅ Loaded ${guides.length} guides`);
+      
+      if (window.toast) {
+        window.toast.success('Guides Loaded', `Found ${guides.length} guide${guides.length !== 1 ? 's' : ''}`);
+      }
+      
       return guides;
       
     } catch (error) {
       console.error('❌ Failed to load guides:', error);
+      if (window.toast) {
+        window.toast.error('Load Failed', error.message);
+      }
       return [];
     }
   }

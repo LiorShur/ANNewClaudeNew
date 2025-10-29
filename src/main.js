@@ -440,83 +440,584 @@ showError(message) {
 // ... rest of your existing methods stay the same ...
 
   // NEW: Setup main event listeners for tracking buttons
-  setupMainEventListeners() {
-    // Start button
-    const startBtn = document.getElementById('startBtn');
-    if (startBtn) {
-      startBtn.addEventListener('click', async () => {
-        try {
-          console.log('🎯 Start button clicked');
-          await this.controllers.tracking.start();
-        } catch (error) {
-          console.error('Failed to start tracking:', error);
-          alert('Failed to start tracking: ' + error.message);
-        }
-      });
-    }
-
-    // Pause button
-    const pauseBtn = document.getElementById('pauseBtn');
-    if (pauseBtn) {
-      pauseBtn.addEventListener('click', () => {
-        console.log('⏸️ Pause button clicked');
-        this.controllers.tracking.togglePause();
-      });
-    }
-
-    // Stop button
-    const stopBtn = document.getElementById('stopBtn');
-    if (stopBtn) {
-      stopBtn.addEventListener('click', () => {
-        console.log('⏹️ Stop button clicked');
-        this.controllers.tracking.stop();
-      });
-    }
-
-    console.log('✅ Main event listeners set up');
-  }
-
-  setupControllerDependencies() {
-    this.controllers.tracking.setDependencies({
-      state: this.controllers.state,
-      map: this.controllers.map,
-      timer: this.controllers.timer,
-      firebase: this.controllers.firebase,  // Add firebase
-      auth: this.controllers.auth,          // Add auth
-      dialogs: this.controllers.dialogs     // Add dialogs
-    });
-
-    this.controllers.tracking.setDependencies({
-      timer: this.controllers.timer,
-      map: this.controllers.map,
-      media: this.controllers.media
-    });
-
-    this.controllers.export.setDependencies({
-      map: this.controllers.map,
-      accessibility: this.controllers.accessibility
-    });
-
-    this.controllers.compass.setDependencies({
-      map: this.controllers.map
-    });
-  }
-
-  async initializeControllers() {
-    const initPromises = Object.entries(this.controllers).map(async ([name, controller]) => {
+setupMainEventListeners() {
+  // Start button
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) {
+    startBtn.addEventListener('click', async () => {
       try {
-        if (typeof controller.initialize === 'function') {
-          await controller.initialize();
-          console.log(`✅ ${name} controller initialized`);
-        }
+        console.log('🎯 Start button clicked');
+        await this.controllers.tracking.start();
       } catch (error) {
-        console.error(`❌ Failed to initialize ${name} controller:`, error);
-        // Don't throw - let other controllers initialize
+        console.error('Failed to start tracking:', error);
+        alert('Failed to start tracking: ' + error.message);
       }
     });
-
-    await Promise.all(initPromises);
   }
+
+  // Pause button
+  const pauseBtn = document.getElementById('pauseBtn');
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', () => {
+      console.log('⏸️ Pause button clicked');
+      this.controllers.tracking.togglePause();
+    });
+  }
+
+  // Stop button
+  const stopBtn = document.getElementById('stopBtn');
+  if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+      console.log('⏹️ Stop button clicked');
+      this.controllers.tracking.stop();
+    });
+  }
+
+  // Load My Routes button
+  const loadRoutesBtn = document.getElementById('loadCloudRoutesBtn');
+  if (loadRoutesBtn) {
+    loadRoutesBtn.addEventListener('click', async () => {
+      console.log('☁️ Load My Routes clicked');
+      try {
+        const routes = await this.controllers.firebase.loadMyRoutes();
+        console.log(`✅ Loaded ${routes.length} routes:`, routes);
+        
+        if (routes.length === 0) {
+          alert('No routes found in cloud. Save some routes first!');
+        } else {
+          // Display routes list
+          this.displayRoutesList(routes);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load routes:', error);
+        alert('Failed to load routes: ' + error.message);
+      }
+    });
+  }
+
+  // Load My Guides button
+  const loadGuidesBtn = document.getElementById('loadMyGuidesBtn');
+  if (loadGuidesBtn) {
+    loadGuidesBtn.addEventListener('click', async () => {
+      console.log('🌐 Load My Guides clicked');
+      try {
+        const guides = await this.controllers.firebase.loadMyGuides();
+        console.log(`✅ Loaded ${guides.length} guides:`, guides);
+        
+        if (guides.length === 0) {
+          alert('No trail guides found. Save a route to cloud to create a guide!');
+        } else {
+          // Display guides list
+          this.displayGuidesList(guides);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load guides:', error);
+        alert('Failed to load guides: ' + error.message);
+      }
+    });
+  }
+
+  // Save to Cloud button (if you have one)
+  const saveToCloudBtn = document.getElementById('saveToCloudBtn');
+  if (saveToCloudBtn) {
+    saveToCloudBtn.addEventListener('click', async () => {
+      console.log('☁️ Save to Cloud clicked');
+      alert('Please save routes by stopping tracking. Cloud save happens automatically!');
+    });
+  }
+
+  console.log('✅ Main event listeners set up');
+}
+
+// Add these methods to your AccessNatureApp class in main.js
+
+displayRoutesList(routes) {
+  const modal = document.getElementById('routesListModal');
+  const container = document.getElementById('routesListContainer');
+  
+  if (!modal || !container) {
+    console.error('Routes modal not found in HTML');
+    alert(`Found ${routes.length} routes. Check console for details.`);
+    console.table(routes);
+    return;
+  }
+
+  if (routes.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <h3>No Routes Found</h3>
+        <p>Start tracking a route and save it to the cloud!</p>
+      </div>
+    `;
+  } else {
+    let html = '';
+    
+    routes.forEach(route => {
+      const date = route.createdAt ? new Date(route.createdAt).toLocaleDateString() : 'Unknown date';
+      const time = route.createdAt ? new Date(route.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+      const distance = (route.totalDistance || 0).toFixed(2);
+      const duration = this.formatDuration(route.duration || route.elapsedTime || 0);
+      const points = route.stats?.locationPoints || route.points?.length || 0;
+      const photos = route.stats?.photos || 0;
+      const visibility = route.isPublic ? '🌍 Public' : '🔒 Private';
+      
+      html += `
+        <div class="list-item" data-route-id="${route.id}">
+          <div class="list-item-title">${route.name || route.routeName || 'Unnamed Route'}</div>
+          <div class="list-item-meta">
+            <span>📅 ${date} ${time}</span>
+            <span>📏 ${distance} km</span>
+            <span>⏱️ ${duration}</span>
+            <span>📍 ${points} points</span>
+            ${photos > 0 ? `<span>📷 ${photos}</span>` : ''}
+            <span>${visibility}</span>
+          </div>
+          <div class="list-item-actions">
+            <button class="list-item-btn list-item-btn-primary" onclick="window.AccessNatureApp.loadRouteOnMap('${route.id}')">
+              🗺️ View on Map
+            </button>
+            <button class="list-item-btn list-item-btn-secondary" onclick="window.AccessNatureApp.downloadRoute('${route.id}')">
+              📥 Download
+            </button>
+            <button class="list-item-btn list-item-btn-secondary" onclick="window.AccessNatureApp.deleteRoute('${route.id}')">
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  }
+
+  modal.classList.remove('hidden');
+}
+
+displayGuidesList(guides) {
+  const modal = document.getElementById('guidesListModal');
+  const container = document.getElementById('guidesListContainer');
+  
+  if (!modal || !container) {
+    console.error('Guides modal not found in HTML');
+    alert(`Found ${guides.length} guides. Check console for details.`);
+    console.table(guides);
+    return;
+  }
+
+  if (guides.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <h3>No Trail Guides Found</h3>
+        <p>Save a route to the cloud to automatically create a trail guide!</p>
+      </div>
+    `;
+  } else {
+    let html = '';
+    
+    guides.forEach(guide => {
+      const date = guide.generatedAt ? new Date(guide.generatedAt).toLocaleDateString() : 'Unknown date';
+      const time = guide.generatedAt ? new Date(guide.generatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+      const distance = (guide.metadata?.totalDistance || 0).toFixed(2);
+      const duration = this.formatDuration(guide.metadata?.elapsedTime || 0);
+      const points = guide.metadata?.locationCount || 0;
+      const photos = guide.metadata?.photoCount || 0;
+      const visibility = guide.isPublic ? '🌍 Public' : '🔒 Private';
+      const wheelchairAccess = guide.accessibility?.wheelchairAccess || 'Unknown';
+      
+      html += `
+        <div class="list-item" data-guide-id="${guide.id}">
+          <div class="list-item-title">${guide.routeName || 'Unnamed Guide'}</div>
+          <div class="list-item-meta">
+            <span>📅 ${date} ${time}</span>
+            <span>📏 ${distance} km</span>
+            <span>⏱️ ${duration}</span>
+            <span>📍 ${points} points</span>
+            ${photos > 0 ? `<span>📷 ${photos}</span>` : ''}
+            <span>${visibility}</span>
+            <span>♿ ${wheelchairAccess}</span>
+          </div>
+          <div class="list-item-actions">
+            <button class="list-item-btn list-item-btn-primary" onclick="window.AccessNatureApp.viewGuide('${guide.id}')">
+              📖 View Guide
+            </button>
+            <button class="list-item-btn list-item-btn-secondary" onclick="window.AccessNatureApp.downloadGuide('${guide.id}')">
+              📥 Download HTML
+            </button>
+            ${!guide.isPublic ? `
+              <button class="list-item-btn list-item-btn-secondary" onclick="window.AccessNatureApp.makeGuidePublic('${guide.id}')">
+                🌍 Make Public
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  }
+
+  modal.classList.remove('hidden');
+}
+
+// Helper method to format duration
+formatDuration(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m`;
+  } else {
+    return `${seconds}s`;
+  }
+}
+
+// Action methods
+async loadRouteOnMap(routeId) {
+  console.log('📍 Loading route on map:', routeId);
+  
+  try {
+    // Close modal
+    this.closeRoutesModal();
+    
+    // Load route data from Firebase (no loading alert)
+    const route = await this.controllers.firebase.loadRoute(routeId);
+    console.log('✅ Route data loaded:', route);
+    
+    // Check if route has points
+    if (!route.points || route.points.length === 0) {
+      alert('⚠️ This route has no GPS points to display on the map.');
+      return;
+    }
+    
+    // Display route on map
+    this.controllers.map.showRouteData(route.points);
+    
+    // Also update distance and timer displays
+    if (route.totalDistance) {
+      const distanceEl = document.getElementById('distance');
+      if (distanceEl) {
+        distanceEl.textContent = `${route.totalDistance.toFixed(2)} km`;
+      }
+    }
+    
+    if (route.duration || route.elapsedTime) {
+      const timerEl = document.getElementById('timer');
+      if (timerEl) {
+        const duration = route.duration || route.elapsedTime;
+        const hours = Math.floor(duration / 3600000);
+        const minutes = Math.floor((duration % 3600000) / 60000);
+        const seconds = Math.floor((duration % 60000) / 1000);
+        timerEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+    }
+    
+    alert(`✅ Route "${route.name || 'Unnamed'}" loaded on map!\n\n📍 ${route.points.length} GPS points\n📏 ${(route.totalDistance || 0).toFixed(2)} km`);
+    
+  } catch (error) {
+    console.error('❌ Failed to load route on map:', error);
+    alert('Failed to load route on map: ' + error.message);
+  }
+}
+
+async downloadRoute(routeId) {
+  console.log('📥 Downloading route:', routeId);
+  
+  try {
+    // Load route from Firebase
+    const route = await this.controllers.firebase.loadRoute(routeId);
+    console.log('✅ Route loaded for download:', route);
+    
+    // Prepare clean data for download
+    const downloadData = {
+      name: route.name || 'Unnamed Route',
+      createdAt: route.createdAt,
+      totalDistance: route.totalDistance,
+      duration: route.duration || route.elapsedTime,
+      points: route.points,
+      stats: route.stats,
+      accessibility: route.accessibility,
+      isPublic: route.isPublic
+    };
+    
+    // Convert to JSON
+    const json = JSON.stringify(downloadData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(route.name || 'route').replace(/[^a-z0-9]/gi, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert('✅ Route downloaded successfully!');
+    
+  } catch (error) {
+    console.error('❌ Failed to download route:', error);
+    alert('Failed to download route: ' + error.message);
+  }
+}
+
+async deleteRoute(routeId) {
+  // Confirm deletion
+  if (!confirm('⚠️ Delete this route?\n\nThis will permanently delete the route from the cloud.\nThis action cannot be undone!')) {
+    return;
+  }
+  
+  console.log('🗑️ Deleting route:', routeId);
+  
+  try {
+    // Delete from Firebase
+    await this.controllers.firebase.deleteRoute(routeId);
+    console.log('✅ Route deleted');
+    
+    alert('✅ Route deleted successfully!');
+    
+    // Reload and refresh the routes list
+    const routes = await this.controllers.firebase.loadMyRoutes();
+    this.displayRoutesList(routes);
+    
+  } catch (error) {
+    console.error('❌ Failed to delete route:', error);
+    alert('Failed to delete route: ' + error.message);
+  }
+}
+
+async viewGuide(guideId) {
+  console.log('📖 Opening trail guide:', guideId);
+  
+  try {
+    // Close modal
+    this.closeGuidesModal();
+    
+    // Load guide from Firebase
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js");
+    const db = this.controllers.firebase.db;
+    
+    const guideRef = doc(db, 'trail_guides', guideId);
+    const guideSnap = await getDoc(guideRef);
+    
+    if (!guideSnap.exists()) {
+      throw new Error('Trail guide not found');
+    }
+    
+    const guide = guideSnap.data();
+    console.log('✅ Guide loaded:', guide);
+    
+    if (!guide.htmlContent) {
+      alert('⚠️ This trail guide has no HTML content to display.');
+      return;
+    }
+    
+    // Open in new window
+    const newWindow = window.open('', '_blank');
+    if (!newWindow) {
+      alert('⚠️ Pop-up blocked! Please allow pop-ups for this site and try again.');
+      return;
+    }
+    
+    newWindow.document.write(guide.htmlContent);
+    newWindow.document.close();
+    
+    console.log('✅ Trail guide opened in new window');
+    
+  } catch (error) {
+    console.error('❌ Failed to view guide:', error);
+    alert('Failed to open trail guide: ' + error.message);
+  }
+}
+
+async downloadGuide(guideId) {
+  console.log('📥 Downloading trail guide:', guideId);
+  
+  try {
+    // Load guide from Firebase
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js");
+    const db = this.controllers.firebase.db;
+    
+    const guideRef = doc(db, 'trail_guides', guideId);
+    const guideSnap = await getDoc(guideRef);
+    
+    if (!guideSnap.exists()) {
+      throw new Error('Trail guide not found');
+    }
+    
+    const guide = guideSnap.data();
+    console.log('✅ Guide loaded for download:', guide);
+    
+    if (!guide.htmlContent) {
+      alert('⚠️ This trail guide has no HTML content to download.');
+      return;
+    }
+    
+    // Create blob and download
+    const blob = new Blob([guide.htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(guide.routeName || 'trail-guide').replace(/[^a-z0-9]/gi, '_')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert('✅ Trail guide downloaded successfully!');
+    
+  } catch (error) {
+    console.error('❌ Failed to download guide:', error);
+    alert('Failed to download trail guide: ' + error.message);
+  }
+}
+
+async makeGuidePublic(guideId) {
+  // Confirm making public
+  if (!confirm('🌍 Make this trail guide public?\n\nIt will be visible to everyone on the community page.\n\nYou can change it back to private later if needed.')) {
+    return;
+  }
+  
+  console.log('🌍 Making guide public:', guideId);
+  
+  try {
+    // Update in Firebase
+    const { doc, updateDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js");
+    const db = this.controllers.firebase.db;
+    
+    const guideRef = doc(db, 'trail_guides', guideId);
+    
+    await updateDoc(guideRef, {
+      isPublic: true,
+      publishedAt: serverTimestamp()
+    });
+    
+    console.log('✅ Guide is now public');
+    
+    alert('✅ Trail guide is now public!\n\nIt will appear on the community page for everyone to see.');
+    
+    // Reload and refresh the guides list
+    const guides = await this.controllers.firebase.loadMyGuides();
+    this.displayGuidesList(guides);
+    
+  } catch (error) {
+    console.error('❌ Failed to make guide public:', error);
+    alert('Failed to update trail guide: ' + error.message);
+  }
+}
+
+async deleteGuide(guideId) {
+  try {
+    const confirmDelete = confirm('⚠️ Are you sure you want to delete this trail guide?\n\nThis action cannot be undone.');
+    
+    if (!confirmDelete) {
+      return;
+    }
+    
+    console.log('🗑️ Deleting guide:', guideId);
+    
+    // Delete from Firebase
+    const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js");
+    const db = this.controllers.firebase.db;
+    
+    const guideRef = doc(db, 'trail_guides', guideId);
+    await deleteDoc(guideRef);
+    
+    console.log('✅ Guide deleted');
+    alert('✅ Trail guide deleted successfully!');
+    
+    // Reload the guides list
+    const guides = await this.controllers.firebase.loadMyGuides();
+    this.displayGuidesList(guides);
+    
+  } catch (error) {
+    console.error('❌ Failed to delete guide:', error);
+    alert('Failed to delete guide: ' + error.message);
+  }
+}
+
+// Close modal functions
+closeRoutesModal() {
+  const modal = document.getElementById('routesListModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+closeGuidesModal() {
+  const modal = document.getElementById('guidesListModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// loadRouteOnMap(routeId) {
+//   console.log('📍 Loading route on map:', routeId);
+//   // TODO: Implement route display on map
+//   alert('Loading route on map - coming soon!');
+// }
+
+// viewGuide(guideId) {
+//   console.log('🌐 Viewing guide:', guideId);
+//   // TODO: Implement guide viewer
+//   alert('Opening trail guide - coming soon!');
+// }
+
+  setupControllerDependencies() {
+  // Tracking controller - ALL dependencies in ONE call
+  this.controllers.tracking.setDependencies({
+    state: this.controllers.state,
+    map: this.controllers.map,
+    timer: this.controllers.timer,
+    media: this.controllers.media,      // Add media here
+    firebase: this.controllers.firebase,
+    auth: this.controllers.auth,
+    dialogs: this.controllers.dialogs
+  });
+
+  // Export controller
+  this.controllers.export.setDependencies({
+    map: this.controllers.map,
+    accessibility: this.controllers.accessibility
+  });
+
+  // Compass controller
+  this.controllers.compass.setDependencies({
+    map: this.controllers.map
+  });
+  
+  // DEBUG - Check final state
+  console.log('🔍 FINAL tracking dependencies:', Object.keys(this.controllers.tracking.dependencies));
+}
+
+  async initializeControllers() {
+  // Skip controllers that are already initialized manually with specific arguments
+  const skipControllers = ['firebase', 'auth', 'dialogs'];
+  
+  for (const [name, controller] of Object.entries(this.controllers)) {
+    // Skip manually initialized controllers
+    if (skipControllers.includes(name)) {
+      console.log(`⏭️ ${name} already initialized, skipping`);
+      continue;
+    }
+    
+    // Initialize controller if it has an initialize method
+    if (controller && typeof controller.initialize === 'function') {
+      try {
+        await controller.initialize();
+        console.log(`✅ ${name} controller initialized`);
+      } catch (error) {
+        console.error(`❌ Failed to initialize ${name}:`, error);
+      }
+    }
+  }
+}
 
   setupErrorHandling() {
     window.addEventListener('error', (event) => {
@@ -665,5 +1166,16 @@ window.loadMyTrailGuides = () => app?.getController('auth')?.loadMyTrailGuides()
 window.viewMyTrailGuide = (guideId) => app?.getController('auth')?.viewTrailGuide(guideId);
 window.toggleGuideVisibility = (guideId, makePublic) => app?.getController('auth')?.toggleTrailGuideVisibility(guideId, makePublic);
 window.deleteTrailGuide = (guideId) => app?.getController('auth')?.deleteTrailGuide(guideId);
+
+// Global functions for onclick handlers
+window.closeRoutesModal = function() {
+  const app = window.AccessNatureApp;
+  if (app) app.closeRoutesModal();
+};
+
+window.closeGuidesModal = function() {
+  const app = window.AccessNatureApp;
+  if (app) app.closeGuidesModal();
+};
 
 export { AccessNatureApp };
